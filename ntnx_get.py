@@ -13,8 +13,6 @@ import argparse
 import time
 import datetime
 import sys
-import json
-import requests
 from workflow import Workflow, ICON_SWITCH, ICON_INFO, ICON_SETTINGS, ICON_NOTE, ICON_WARNING, \
     ICON_ERROR
 from workflow.notify import notify
@@ -53,6 +51,17 @@ KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateS
 KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'hypervisorSecurityComplianceConfig',
                       'securityComplianceConfig', 'rackableUnits', 'publicKeys', 
                       'clusterRedundancyState', 'globalNfsWhiteList'}
+
+
+def __install_and_import_package(package):
+    import importlib
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        import pip
+        pip.main(['install', '--user', package])
+    finally:
+        globals()[package] = importlib.import_module(package)
 
 
 def __supress_security():
@@ -555,6 +564,11 @@ if __name__ == u"__main__":
 
     global wf  # global workflow Alfred varibale
     global log  # global log variable
+
+    # install and import modules
+    # 'pip install --user -U pip' must be execute beforehand
+    __install_and_import_package('requests')
+    __install_and_import_package('json')
 
     wf = Workflow(update_settings=UPDATE_SETTINGS)
     log = wf.logger
