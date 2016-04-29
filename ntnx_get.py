@@ -48,10 +48,17 @@ KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateS
                    'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state',
                    'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation',
                    'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid',
-                   'defaultVhdContainerUuid', 'defaultVmLocation'}
+                   'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
+                   'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize',
+                   'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername',
+                   'hypervisorUsername'}
 KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'hypervisorSecurityComplianceConfig',
-                      'securityComplianceConfig', 'rackableUnits', 'publicKeys', 
-                      'clusterRedundancyState', 'globalNfsWhiteList'}
+                      'securityComplianceConfig', 'rackableUnits', 'publicKeys',
+                      'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster',
+                      'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id',
+                      'clusterIncarnationId', 'credential', 'allHypervNodesInFailoverCluster',
+                      'httpProxies', 'uuid', 'supportVerbosityType', 'cloudcluster',
+                      'fullVersion'}
 
 
 def __install_and_import_package(package):
@@ -336,9 +343,9 @@ def main(wf):
         wf.add_item(
             "vms", valid=False, autocomplete="vms ", uid=u'vms', icon=ICON_INFO)
 
-        # 
+        #
         # vm operations
-        # 
+        #
         if str((args.query).split(" ")[0]) == 'vms':
 
             # parse second args.query
@@ -414,9 +421,9 @@ def main(wf):
                     wf.add_item(i['config']['name'], i['uuid'], valid=False, autocomplete="vms "
                                 + str(i['config']['name']), uid=i['uuid'], icon=ICON_AHV)
 
-        # 
+        #
         # host operations
-        # 
+        #
         elif str((args.query).split(" ")[0]) == 'hosts':
 
             try:
@@ -438,7 +445,7 @@ def main(wf):
                     # iterate json result and add alerts to list
                     for i in json_object['entities']:
                         wf.add_item(
-                            i['alertTitle'], valid=False, icon=ICON_ERROR)
+                            i['alertTitle'], valid=True, icon=ICON_ERROR)
                 else:
                     wf.add_item(
                         'No Alerts', valid=False, icon=ICON_WARNING)
@@ -487,9 +494,9 @@ def main(wf):
                         wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
                                     str(i['name']), uid=i['uuid'], icon=ICON_AHV_ALERT)
 
-        # 
+        #
         # cluster operations
-        # 
+        #
         elif str((args.query).split(" ")[0]) == 'clusters':
 
             try:
@@ -504,6 +511,10 @@ def main(wf):
 
                 # load and display a specific cluster
                 json_object = json.loads(__request_cluster(uuid))
+
+                # include host-vms option
+                wf.add_item("cluster-hosts", valid=False, autocomplete="cluster-hosts " +
+                            str((args.query).split(" ")[1]), uid=u'uuid', icon=ICON_INFO)
 
                 # iterate json result and add host details to list
                 for key, value in json_object.items():
@@ -521,9 +532,9 @@ def main(wf):
                     wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="clusters " +
                                 str(i['name']), uid=i['uuid'], icon=ICON_AHV)
 
-        # 
+        #
         # host-vm operations
-        # 
+        #
         elif str((args.query).split(" ")[0]) == "host-vms":
 
             # uuid variable
@@ -539,6 +550,32 @@ def main(wf):
                         wf.add_item(i['config']['name'], i['uuid'], valid=False,
                                     autocomplete="vms " + str(i['config']['name']), uid=i['uuid'],
                                     icon=ICON_AHV)
+                except Exception:
+                    pass
+
+        #
+        # cluster-hosts operations
+        #
+        elif str((args.query).split(" ")[0]) == "cluster-hosts":
+
+           # uuid variable
+            uuid = __request_cluster_uuid(str((args.query).split(" ")[1]))
+
+            # load all vms
+            json_object = json.loads(__request_hosts())
+
+            # iterate json result and add hosts where cluster 'uuid' match
+            for i in json_object['entities']:
+                try:
+                    if i['clusterUuid'] == uuid:
+                        # load host icon based on host state
+                        if i['state'] == 'NORMAL':
+                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                        str(i['name']), uid=i['uuid'], icon=ICON_AHV)
+                        else:
+                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                        str(i['name']), uid=i['uuid'], icon=ICON_AHV_ALERT)
+
                 except Exception:
                     pass
 
