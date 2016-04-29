@@ -32,6 +32,7 @@ ICON_ON = 'icons/on.png'
 ICON_OFF = 'icons/off.png'
 ICON_NORMAL = 'icons/normal.png'
 ICON_AHV = 'icons/ahv.png'
+ICON_AHV_ALERT = 'icons/ahv_alert.png'
 ICON_CLONE = 'icons/clone.png'
 ICON_SNAPSHOT = 'icons/snapshot.png'
 
@@ -318,6 +319,10 @@ def main(wf):
         print "No argument provided"
         return 0
 
+    if args.notifications:
+        notify(title=u'Notifications', text='Notifications', sound=None)
+        return 0
+
     if args.get:
         # include clusters option
         wf.add_item(
@@ -474,8 +479,13 @@ def main(wf):
 
                 # iterate json result and add hosts to list
                 for i in json_object['entities']:
-                    wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                str(i['name']), uid=i['uuid'], icon=ICON_AHV)
+                    # load host icon based on host state
+                    if i['state'] == 'NORMAL':
+                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                    str(i['name']), uid=i['uuid'], icon=ICON_AHV)
+                    else:
+                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                    str(i['name']), uid=i['uuid'], icon=ICON_AHV_ALERT)
 
         # 
         # cluster operations
@@ -556,6 +566,8 @@ def parse_args(args):
         '--poweroff', dest='poweroff', action='store_true', default=None)
     parser.add_argument(
         '--poweron', dest='poweron', action='store_true', default=None)
+    parser.add_argument(
+        '--notifications', dest='notifications', action='store_true', default=None)
     parser.add_argument('query', nargs='?', default=None)
 
     return parser.parse_args(args)
