@@ -35,6 +35,7 @@ ICON_AHV = 'icons/ahv.png'
 ICON_AHV_ALERT = 'icons/ahv_alert.png'
 ICON_CLONE = 'icons/clone.png'
 ICON_SNAPSHOT = 'icons/snapshot.png'
+ICON_MAINTENANCE = 'icons/maintenance.png'
 
 
 # Nutanix API URI
@@ -51,14 +52,18 @@ KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateS
                    'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
                    'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize',
                    'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername',
-                   'hypervisorUsername'}
+                   'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword',
+                   'blockLocation','hostMaintenanceModeReason', 'rebootPending', 'monitored',
+                   'oplogDiskPct'}
 KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'hypervisorSecurityComplianceConfig',
                       'securityComplianceConfig', 'rackableUnits', 'publicKeys',
                       'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster',
                       'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id',
                       'clusterIncarnationId', 'credential', 'allHypervNodesInFailoverCluster',
                       'httpProxies', 'uuid', 'supportVerbosityType', 'cloudcluster',
-                      'fullVersion'}
+                      'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined',
+                      'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit',
+                      'fingerprintContentCachePercentage', 'domain', 'enableShadowClones'}
 
 
 def __install_and_import_package(package):
@@ -82,7 +87,7 @@ def __retrieve_config_data():
     return wf.stored_data('ntnxapi_data')
 
 
-def __request_logicaltimestampdtop(uuid):
+def __request_logicaltimestampdtop_vm(uuid):
     # request LogicalTimestampDTO for vm operations
     json_object = json.loads(__request_vm(str(uuid)))
 
@@ -175,6 +180,15 @@ def __request_clusters():
     return __htpp_request(base_url)
 
 
+def __request_cluster_hypervisorType(uuid):
+    # request saved config data
+    ntnxapi_data = __retrieve_config_data()
+
+    base_url = __request_cluster(uuid)
+
+    return str(json.loads(__htpp_request(base_url))['hypervisorTypes'])
+
+
 def __request_vm(uuid):
     # request saved config data
     ntnxapi_data = __retrieve_config_data()
@@ -235,7 +249,7 @@ def __powerop_vm(uuid, operation):
     ntnxapi_data = __retrieve_config_data()
 
     # request LogicalTimestampDTO for vm operations
-    logicaltimestampdto = __request_logicaltimestampdtop(uuid)
+    logicaltimestampdto = __request_logicaltimestampdtop_vm(uuid)
     json_data = json.dumps(
         {"logicalTimestamp": logicaltimestampdto}, sort_keys=True)
 
@@ -288,6 +302,54 @@ def __snapshot_vm(name):
     notify(title=u'VM Operations', text=u'VM snapshot complete', sound=None)
 
 
+def __enter_maintenance_mode_host(uuid):
+    # supress the security warnings
+    __supress_security()
+
+    # request saved config data
+    ntnxapi_data = __retrieve_config_data()
+
+    # POWER_OFF, COLD_MIGRATE, LIVE_MIGRATE
+    json_data = json.dumps(
+        {"evacuationOption": 'LIVE_MIGRATE',
+         "logicalTimestamp": ''}, sort_keys=True)
+
+    base_url = "https://" + \
+        ntnxapi_data['cluster'] + API_AHV + \
+        "/hosts/" + uuid + "/enter_maintenance_mode"
+    s = requests.Session()
+    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
+    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
+    s.post(base_url, data=json_data, verify=False)
+
+    # notify complete operation via Alfred workflow
+    notify(title=u'Host Operation',
+           text=u'Entering Maintenance Mode w/ LIVE_MIGRATE', sound=None)
+
+
+def __exit_maintenance_mode_host(uuid):
+    # supress the security warnings
+    __supress_security()
+
+    # request saved config data
+    ntnxapi_data = __retrieve_config_data()
+
+    json_data = json.dumps(
+        {"logicalTimestamp": ''}, sort_keys=True)
+
+    base_url = "https://" + \
+        ntnxapi_data['cluster'] + API_AHV + \
+        "/hosts/" + uuid + "/exit_maintenance_mode"
+    s = requests.Session()
+    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
+    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
+    s.post(base_url, data=json_data, verify=False)
+
+    # notify complete operation via Alfred workflow
+    notify(title=u'Host Operation',
+           text=u'Exiting Maintenance Mode', sound=None)
+
+
 def __check_update():
     # self-updating function
     wf.check_update(UPDATE_SETTINGS)
@@ -307,6 +369,8 @@ def __parse_args_query(argument):
         switcher = {
             'alerts': 'alerts',
             'snapshot': 'snapshot',
+            'enter_maintenance_mode': 'enter_maintenance_mode',
+            'exit_maintenance_mode': 'exit_maintenance_mode',
             '': 'no argument'
         }
     except Exception, e:
@@ -315,9 +379,41 @@ def __parse_args_query(argument):
     return switcher.get(argument, 'loaditem')
 
 
+def __include_list_options(clusters, hosts, vms, hostvms, clusterhosts, argument, uid):
+
+    if clusters:
+        # include clusters option
+        wf.add_item("clusters", valid=False,
+                    autocomplete="clusters ", uid=u'clusters', icon=ICON_INFO)
+
+    if hosts:
+        # include hosts option
+        wf.add_item("hosts", valid=False, autocomplete="hosts ",
+                    uid=u'hosts', icon=ICON_INFO)
+
+    if vms:
+        # include vms option
+        wf.add_item(
+            "vms", valid=False, autocomplete="vms ", uid=u'vms', icon=ICON_INFO)
+
+    if hostvms:
+        # include host-vms option
+        wf.add_item("host-vms", valid=False, autocomplete="host-vms " +
+                    argument, uid=uid, icon=ICON_INFO)
+
+    if clusterhosts:
+        # include cluster-hosts option
+        wf.add_item("cluster-hosts", valid=False, autocomplete="cluster-hosts " +
+                    argument, uid=uid, icon=ICON_INFO)
+
+
 def main(wf):
     # self-updating function
     __check_update()
+
+    # include Alfred list options
+    # (clusters,hosts,vms,hostvms,clusterhosts,argument,uid)
+    __include_list_options(True, True, True, False, False, 'null', 'null')
 
     args = parse_args(wf.args)
 
@@ -326,28 +422,11 @@ def main(wf):
         print "No argument provided"
         return 0
 
-    if args.notifications:
-        notify(title=u'Notifications', text='Notifications', sound=None)
-        return 0
-
     if args.get:
-        # include clusters option
-        wf.add_item(
-            "clusters", valid=False, autocomplete="clusters ", uid=u'clusters', icon=ICON_INFO)
-
-        # include hosts option
-        wf.add_item("hosts", valid=False, autocomplete="hosts ",
-                    uid=u'hosts', icon=ICON_INFO)
-
-        # include vms option
-        wf.add_item(
-            "vms", valid=False, autocomplete="vms ", uid=u'vms', icon=ICON_INFO)
-
         #
         # vm operations
         #
         if str((args.query).split(" ")[0]) == 'vms':
-
             # parse second args.query
             try:
                 arg_secondary = __parse_args_query(
@@ -457,9 +536,10 @@ def main(wf):
                 # load and display a specify host
                 json_object = json.loads(__request_host(uuid))
 
-                # include host-vms option
-                wf.add_item("host-vms", valid=False, autocomplete="host-vms " +
-                            str((args.query).split(" ")[1]), uid=u'uuid', icon=ICON_INFO)
+                # include Alfred list options
+                # (clusters,hosts,vms,hostvms,clusterhosts,argument,uid)
+                __include_list_options(
+                    False, False, False, True, False, str((args.query).split(" ")[1]), u'uuid')
 
                 # add alerts switch
                 wf.add_item(
@@ -473,12 +553,39 @@ def main(wf):
                     wf.add_item(
                         str("State :" + (json_object)['state']), valid=False, icon=ICON_ERROR)
 
+                # include enter_maintenance_mode and exit_maintenance_mode options
+                # only include if Acropolis hypervisor
+                if str((json_object)['hypervisorState']) == 'kAcropolisNormal':
+                    wf.add_item(
+                        "Enter Maintenance Mode", valid=False, 
+                        autocomplete="hosts enter_maintenance_mode " +
+                        str((args.query).split(" ")[1]), arg=uuid, icon=ICON_MAINTENANCE)
+                elif str((json_object['hypervisorState'])) == 'kEnteredMaintenanceMode':
+                    wf.add_item(
+                        "Exit Maintenance Mode", valid=False, 
+                        autocomplete="hosts exit_maintenance_mode " +
+                        str((args.query).split(" ")[1]), arg=uuid, icon=ICON_MAINTENANCE)
+
                 # iterate json result and add host details to list
                 for key, value in json_object.items():
                     # do not display certain keys
                     if key not in KEY_IGNORE_HOST:
                         wf.add_item(
                             key + " : " + str(value), valid=False, icon=ICON_SETTINGS)
+
+            if arg_secondary == 'enter_maintenance_mode':
+                # uuid variable
+                uuid = __request_host_uuid(str((args.query).split(" ")[2]))
+
+                # __enter_maintenance_mode_host
+                __enter_maintenance_mode_host(uuid)
+
+            if arg_secondary == 'exit_maintenance_mode':
+                # uuid variable
+                uuid = __request_host_uuid(str((args.query).split(" ")[2]))
+
+                # __exit_maintenance_mode_host
+                __exit_maintenance_mode_host(uuid)
 
             if arg_secondary == 'no argument':
                 # load and display all hosts
@@ -489,10 +596,10 @@ def main(wf):
                     # load host icon based on host state
                     if i['state'] == 'NORMAL':
                         wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                    str(i['name']), uid=i['uuid'], icon=ICON_AHV)
+                                    str(i['name']), icon=ICON_AHV)
                     else:
                         wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                    str(i['name']), uid=i['uuid'], icon=ICON_AHV_ALERT)
+                                    str(i['name']), icon=ICON_AHV_ALERT)
 
         #
         # cluster operations
@@ -512,9 +619,10 @@ def main(wf):
                 # load and display a specific cluster
                 json_object = json.loads(__request_cluster(uuid))
 
-                # include host-vms option
-                wf.add_item("cluster-hosts", valid=False, autocomplete="cluster-hosts " +
-                            str((args.query).split(" ")[1]), uid=u'uuid', icon=ICON_INFO)
+                # include Alfred list options
+                # (clusters,hosts,vms,hostvms,clusterhosts,argument,uid)
+                __include_list_options(
+                    False, False, False, False, True, str((args.query).split(" ")[1]), u'uuid')
 
                 # iterate json result and add host details to list
                 for key, value in json_object.items():
@@ -524,6 +632,7 @@ def main(wf):
                             key + " : " + str(value), valid=False, icon=ICON_SETTINGS)
 
             if arg_secondary == 'no argument':
+
                 # load and display all clusters
                 json_object = json.loads(__request_clusters())
 
@@ -571,10 +680,10 @@ def main(wf):
                         # load host icon based on host state
                         if i['state'] == 'NORMAL':
                             wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                        str(i['name']), uid=i['uuid'], icon=ICON_AHV)
+                                        str(i['name']), icon=ICON_AHV)
                         else:
                             wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                        str(i['name']), uid=i['uuid'], icon=ICON_AHV_ALERT)
+                                        str(i['name']), icon=ICON_AHV_ALERT)
 
                 except Exception:
                     pass
@@ -603,8 +712,6 @@ def parse_args(args):
         '--poweroff', dest='poweroff', action='store_true', default=None)
     parser.add_argument(
         '--poweron', dest='poweron', action='store_true', default=None)
-    parser.add_argument(
-        '--notifications', dest='notifications', action='store_true', default=None)
     parser.add_argument('query', nargs='?', default=None)
 
     return parser.parse_args(args)
