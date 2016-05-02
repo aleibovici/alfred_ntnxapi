@@ -46,32 +46,12 @@ API_PRISM = ':9440/PrismGateway/services/rest/v1'
 
 
 # Filter ignore Keys
-KEY_IGNORE_VM = {'vmDisks', 'vmNics', 'containerIds', 'vmId', 'virtualNicIds', 'vdiskFilePaths',
-                 'stats', 'uuid', 'nutanixVirtualDisks', 'nutanixVirtualDisksIds',
-                 'nutanixVirtualDiskUuids', 'nutanixVirtualDiskIds', 'hostId', 'hostUuid',
-                 'clusterUuid', 'usageStats', 'virtualNicUuids',
-                 'containerUuids', 'nutanixGuestTools', 'runningOnNdfs', 'vdiskNames',
-                 'displayable'}
-KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateStatus',
-                   'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state',
-                   'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation',
-                   'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid',
-                   'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
-                   'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize',
-                   'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername',
-                   'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword',
-                   'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored',
-                   'oplogDiskPct', 'failoverClusterNodeState'}
-KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'hypervisorSecurityComplianceConfig',
-                      'securityComplianceConfig', 'rackableUnits', 'publicKeys',
-                      'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster',
-                      'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id',
-                      'clusterIncarnationId', 'credential', 'allHypervNodesInFailoverCluster',
-                      'httpProxies', 'uuid', 'supportVerbosityType', 'cloudcluster',
-                      'fullVersion', 'enableLockDown', 'isUpgradeInProgress',
-                      'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster',
-                      'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain',
-                      'enableShadowClones'}
+KEY_IGNORE_VM = {'vmDisks', 'vmNics', 'containerIds', 'vmId', 'virtualNicIds', 'vdiskFilePaths', 'stats', 'uuid', 'nutanixVirtualDisks', 'nutanixVirtualDisksIds', 'nutanixVirtualDiskUuids',
+                 'nutanixVirtualDiskIds', 'hostId', 'hostUuid', 'clusterUuid', 'usageStats', 'virtualNicUuids', 'containerUuids', 'nutanixGuestTools', 'runningOnNdfs', 'vdiskNames', 'displayable'}
+KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateStatus', 'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state', 'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation', 'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid', 'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
+                   'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize', 'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername', 'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword', 'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored', 'oplogDiskPct', 'failoverClusterNodeState', 'bmcModel', 'biosModel', 'cpuModel'}
+KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'cloudcluster', 'hypervisorSecurityComplianceConfig', 'securityComplianceConfig', 'rackableUnits', 'publicKeys', 'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster', 'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id', 'clusterIncarnationId',
+                      'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones'}
 
 
 def __install_and_import_package(package):
@@ -124,12 +104,28 @@ def __htpp_request(base_url):
     return json.dumps(s.get(base_url, verify=False).json(), sort_keys=True)
 
 
+def __http_post(base_url, json_data):
+    # supress the security warnings
+    __supress_security()
+
+    # request saved config data
+    ntnxapi_data = __retrieve_config_data()
+
+    s = requests.Session()
+    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
+    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
+    s.post(base_url, data=json_data, verify=False)
+
+    return 0
+
+
 def __request_vm_uuid(name):
     # request saved config data
     ntnxapi_data = __retrieve_config_data()
 
     base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + "/vms/?count=1&searchString=" + name
+        ntnxapi_data['cluster'] + API_PRISM + \
+        "/vms/?count=1&searchString=" + name
 
     return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
 
@@ -140,8 +136,6 @@ def __request_vm_vmuuid(name):
 
     base_url = "https://" + \
         ntnxapi_data['cluster'] + API_PRISM + "/vms/?searchString=" + name
-
-
 
     return str(json.loads(__htpp_request(base_url))['entities'][0]['vmId'])
 
@@ -196,15 +190,6 @@ def __request_clusters():
         ntnxapi_data['cluster'] + API_PRISM + "/clusters/"
 
     return __htpp_request(base_url)
-
-
-def __request_cluster_hypervisorType(uuid):
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
-
-    base_url = __request_cluster(uuid)
-
-    return str(json.loads(__htpp_request(base_url))['hypervisorTypes'])
 
 
 def __request_vm(uuid):
@@ -275,14 +260,11 @@ def __powerop_vm(uuid, operation):
         ntnxapi_data['cluster'] + API_AHV + \
         "/vms/" + uuid + "/power_op/" + operation
 
-    s = requests.Session()
-    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
-    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
-    s.post(base_url, data=json_data, verify=False)
+    # request http post
+    __http_post(base_url, json_data)
 
-    # notify complete operation via Alfred workflow
-    notify(title=u'VM Power Operations',
-           text=u"Virtual Machine Powering On/Off", sound=None)
+    # notify complete operation
+    __notify('VM Power Operation', 'Virtual Machine Powering On/Off')
 
 
 def __snapshot_vm(name):
@@ -302,7 +284,7 @@ def __snapshot_vm(name):
     snapshottimestamp = datetime.datetime.fromtimestamp(
         time.time()).strftime('%Y-%m-%d %H:%M:%S')
 
-    # build snapshotSpecs paylod
+    # build snapshotSpecs payload
     children = []
     children.append({"vmUuid": vmuuid,
                      'snapshotName': snapshottimestamp,
@@ -312,13 +294,12 @@ def __snapshot_vm(name):
     json_data = json.dumps(container)
 
     base_url = "https://" + ntnxapi_data['cluster'] + API_AHV + "/snapshots/"
-    s = requests.Session()
-    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
-    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
-    s.post(base_url, data=json_data, verify=False)
 
-    # notify complete operation via Alfred workflow
-    notify(title=u'VM Operations', text=u'VM snapshot complete', sound=None)
+    # request http post
+    __http_post(base_url, json_data)
+
+    #  complete operation
+    __notify('VM Power Operation', 'VM snapshot complete')
 
 
 def __enter_maintenance_mode_host(uuid):
@@ -336,14 +317,12 @@ def __enter_maintenance_mode_host(uuid):
     base_url = "https://" + \
         ntnxapi_data['cluster'] + API_AHV + \
         "/hosts/" + uuid + "/enter_maintenance_mode"
-    s = requests.Session()
-    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
-    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
-    s.post(base_url, data=json_data, verify=False)
 
-    # notify complete operation via Alfred workflow
-    notify(title=u'Host Operation',
-           text=u'Entering Maintenance Mode w/ LIVE_MIGRATE', sound=None)
+    # request http post
+    __http_post(base_url, json_data)
+
+    # notify complete operation
+    __notify('Host Operation', 'Entering Maintenance Mode w/ LIVE_MIGRATE')
 
 
 def __exit_maintenance_mode_host(uuid):
@@ -359,14 +338,18 @@ def __exit_maintenance_mode_host(uuid):
     base_url = "https://" + \
         ntnxapi_data['cluster'] + API_AHV + \
         "/hosts/" + uuid + "/exit_maintenance_mode"
-    s = requests.Session()
-    s.auth = (ntnxapi_data['username'], ntnxapi_data['password'])
-    s.headers.update({'Content-Type': 'application/json; charset=utf-8'})
-    s.post(base_url, data=json_data, verify=False)
 
-    # notify complete operation via Alfred workflow
-    notify(title=u'Host Operation',
-           text=u'Exiting Maintenance Mode', sound=None)
+    # request http post
+    __http_post(base_url, json_data)
+
+    # notify complete operation
+    __notify('Host Operation', 'Exiting Maintenance Mode')
+
+
+def __notify(title, text):
+    # issue Alfred notification banner
+    notify(title=title, text=text, sound=None)
+    return 0
 
 
 def __check_update():
@@ -731,7 +714,7 @@ def main(wf):
 
     else:
         # notify error if conditions are not met
-        notify(title=u'Error', text='An error occured', sound=None)
+        __notify('Error', 'An error has occured')
 
     wf.send_feedback()
 
@@ -749,10 +732,10 @@ def parse_args(args):
 
     return parser.parse_args(args)
 
+
 if __name__ == u"__main__":
 
     global wf  # global workflow Alfred varibale
-    global log  # global log variable
 
     # install and import modules
     # 'pip install --user -U pip' must be execute beforehand
@@ -760,5 +743,4 @@ if __name__ == u"__main__":
     __install_and_import_package('json')
 
     wf = Workflow(update_settings=UPDATE_SETTINGS)
-    log = wf.logger
     sys.exit(wf.run(main))
