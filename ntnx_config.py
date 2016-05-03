@@ -57,7 +57,7 @@ def main(wf):
     if executed:
         # use Alfred to store workflow configuration
         wf.store_data('ntnxapi_data', ntnxapi_data, serializer='json')
-        notify('','Configuration Data Sucefully Stored')
+        notify('Notice', 'Configuration Data Sucesfully Stored')
 
     wf.send_feedback()
 
