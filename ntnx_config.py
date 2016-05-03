@@ -10,31 +10,60 @@
 #  version 2.1 of the License, or (at your option) any later version.
 
 import sys
+import json
+from ntnx_get import notify, parse_args
 from workflow import Workflow
 
 
 def main(wf):
-    """Save cluster configuration"""
 
-    ntnxapi_data = wf.stored_data('ntnxapi_data')
-    data = {}
+    executed = False    # True if execution is sucessfull before store
 
-    if ntnxapi_data is None:
+    args = parse_args(wf.args)
 
-        # Clear stored data
-        wf.clear_data()
+    # include Alfred username option
+    wf.add_item("username", valid=False,
+                autocomplete="username ", uid=u'username')
 
-        data = {
-            'cluster': str(sys.argv[1]).split(" ")[0],
-            'username': str(sys.argv[1]).split(" ")[1],
-            'password': str(sys.argv[1]).split(" ")[2],
-        }
+    # include Alfred password option
+    wf.add_item("password", valid=False,
+                autocomplete="username ", uid=u'username')
 
-    wf.store_data('ntnxapi_data', data, serializer='json')
-    ntnxapi_data = data
+    # include Alfred cluster option
+    wf.add_item("cluster", valid=False,
+                autocomplete="username ", uid=u'username')
+
+    # check for existing aguments in query
+    if args.query is None:
+        notify('error', 'no arguments')
+        return 0
+
+    # load Alfred workflow configuration
+    ntnxapi_data = json.loads(json.dumps(wf.stored_data('ntnxapi_data')))
+
+    # granular control for each configuration entity
+    if str((args.query).split(" ")[0]) == 'username':
+        ntnxapi_data['username'] = str((args.query).split(" ")[1])
+        executed = True
+
+    if str((args.query).split(" ")[0]) == 'password':
+        ntnxapi_data['password'] = str((args.query).split(" ")[1])
+        executed = True
+
+    if str((args.query).split(" ")[0]) == 'cluster':
+        ntnxapi_data['cluster'] = str((args.query).split(" ")[1])
+        executed = True
+
+    if executed:
+        # use Alfred to store workflow configuration
+        wf.store_data('ntnxapi_data', ntnxapi_data, serializer='json')
+        notify('','Configuration Data Sucefully Stored')
 
     wf.send_feedback()
 
 if __name__ == u"__main__":
+
+    global wf  # global workflow Alfred varibale
+
     wf = Workflow()
     sys.exit(wf.run(main))
