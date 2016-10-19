@@ -13,9 +13,11 @@ import argparse
 import time
 import datetime
 import sys
+import os
 from workflow import Workflow, ICON_SWITCH, ICON_INFO, ICON_SETTINGS, ICON_NOTE, ICON_WARNING, \
     ICON_ERROR
 from workflow.notify import notify
+from plistlib import readPlist, writePlist
 
 
 # GitHub repo for self-updating
@@ -38,6 +40,7 @@ ICON_AHV_ALERT = 'icons/ahv_alert.png'
 ICON_CLONE = 'icons/clone.png'
 ICON_SNAPSHOT = 'icons/snapshot.png'
 ICON_MAINTENANCE = 'icons/maintenance.png'
+ICON_BACK = 'icons/back.png'
 
 
 # Nutanix API URI
@@ -47,11 +50,11 @@ API_PRISM = ':9440/PrismGateway/services/rest/v1'
 
 # Filter ignore Keys
 KEY_IGNORE_VM = {'vmDisks', 'vmNics', 'containerIds', 'vmId', 'virtualNicIds', 'vdiskFilePaths', 'stats', 'uuid', 'nutanixVirtualDisks', 'nutanixVirtualDisksIds', 'nutanixVirtualDiskUuids',
-                 'nutanixVirtualDiskIds', 'hostId', 'hostUuid', 'clusterUuid', 'usageStats', 'virtualNicUuids', 'containerUuids', 'nutanixGuestTools', 'runningOnNdfs', 'vdiskNames', 'displayable'}
+                 'nutanixVirtualDiskIds', 'hostId', 'hostUuid', 'clusterUuid', 'usageStats', 'virtualNicUuids', 'containerUuids', 'nutanixGuestTools', 'runningOnNdfs', 'vdiskNames', 'displayable', 'guestOperatingSystem', 'acropolisVm', 'powerState', 'onDiskDedup', 'fingerPrintOnWrite', 'controllerVm', 'numNetworkAdapters', 'memoryReservedCapacityInBytes', 'cpuReservedInHz', 'diskCapacityInBytes'}
 KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateStatus', 'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state', 'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation', 'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid', 'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
-                   'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize', 'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername', 'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword', 'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored', 'oplogDiskPct', 'failoverClusterNodeState', 'bmcModel', 'biosModel', 'cpuModel'}
+                   'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize', 'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername', 'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword', 'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored', 'oplogDiskPct', 'failoverClusterNodeState', 'bmcModel', 'biosModel', 'cpuModel', 'failoveClusterFqdn', 'bmcVersion', 'biosVersion', 'cpuCapacityInHz', 'cpuFrequencyInHz', 'isDegraded', 'hbaFirmwaresList', 'memoryCapacityInBytes'}
 KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'cloudcluster', 'hypervisorSecurityComplianceConfig', 'securityComplianceConfig', 'rackableUnits', 'publicKeys', 'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster', 'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id', 'clusterIncarnationId',
-                      'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones'}
+                      'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones', 'disableDegradedNodeMonitoring', 'enforceRackableUnitAwarePlacement', 'iscsiConfig', 'smtpServer'}
 
 
 def __install_and_import_package(package):
@@ -73,6 +76,28 @@ def __supress_security():
 def __retrieve_config_data():
     # request saved config data
     return wf.stored_data('ntnxapi_data')
+
+
+def __retrieve_env_variable(variable):
+    return str(os.getenv(variable))
+
+
+def __save_env_variable(variable, value):
+    # retrieve info.plist
+    info = readPlist('info.plist')
+    # Set a variable
+    info['variables'][variable] = str(value)
+    # Save changes
+    writePlist(info, 'info.plist')
+
+
+def __reset_env_variable(variable):
+    # retrieve info.plist
+    info = readPlist('info.plist')
+    # Set an empty variable
+    info['variables'][variable] = str('')
+    # Save changes
+    writePlist(info, 'info.plist')
 
 
 def __request_logicaltimestampdtop_vm(uuid):
@@ -119,13 +144,26 @@ def __http_post(base_url, json_data):
     return 0
 
 
-def __request_vm_uuid(name):
+def __request_vm_uuid(vmname):
     # request saved config data
     ntnxapi_data = __retrieve_config_data()
 
     base_url = "https://" + \
         ntnxapi_data['cluster'] + API_PRISM + \
-        "/vms/?count=1&searchString=" + name
+        "/vms/?count=1&searchString=" + vmname
+
+    return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
+
+
+def __request_vm_uuid_new(vmname):
+
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + \
+            "/vms/?searchString=" + vmname
+        # check if json_object has no entities before proceeding
+        if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
+            if vmname == str(json.loads(__htpp_request(base_url))['entities'][0]['vmName']):
+                break
 
     return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
 
@@ -151,6 +189,19 @@ def __request_host_uuid(name):
     return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
 
 
+def __request_host_uuid_new(host_name):
+
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + \
+            "/hosts/?searchString=" + host_name
+        # check if json_object has no entities before proceeding
+        if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
+            if host_name == str(json.loads(__htpp_request(base_url))['entities'][0]['name']):
+                break
+
+    return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
+
+
 def __request_cluster_uuid(name):
     # request saved config data
     ntnxapi_data = __retrieve_config_data()
@@ -162,32 +213,60 @@ def __request_cluster_uuid(name):
     return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
 
 
-def __request_hosts():
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
+def __request_cluster_uuid_new(cluster_name):
 
-    base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + "/hosts/"
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + "/cluster"
+        if cluster_name == str(json.loads(__htpp_request(base_url))['name']):
+            break
+
+    return str(json.loads(__htpp_request(base_url))['uuid'])
+
+
+def __request_cluster_ip(cluster_name):
+
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + "/cluster"
+        if cluster_name == str(json.loads(__htpp_request(base_url))['name']):
+            break
+
+    return str(json.loads(__htpp_request(base_url))['clusterExternalIPAddress'])
+
+
+def __request_hosts(cluster_ip_address):
+
+    base_url = "https://" + cluster_ip_address + API_PRISM + "/hosts/"
 
     return __htpp_request(base_url)
 
 
-def __request_vms():
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
+def __request_cluster_hosts(cluster_ip_address):
 
-    base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + "/vms/"
+    base_url = "https://" + cluster_ip_address + API_PRISM + "/hosts/"
 
     return __htpp_request(base_url)
 
 
-def __request_clusters():
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
+def __request_vms(cluster_ip_address):
 
-    base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + "/clusters/"
+    base_url = "https://" + cluster_ip_address + API_PRISM + "/vms/"
+
+    return __htpp_request(base_url)
+
+
+def __request_clusters(cluster_ip_address):
+
+    base_url = "https://" + cluster_ip_address + API_PRISM + "/clusters/"
+
+    return __htpp_request(base_url)
+
+
+def __request_cluster(uuid):
+
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + "/clusters/" + uuid
+        if uuid == str(json.loads(__htpp_request(base_url))['uuid']):
+            break
 
     return __htpp_request(base_url)
 
@@ -202,6 +281,19 @@ def __request_vm(uuid):
     return __htpp_request(base_url)
 
 
+def __request_vm_by_name(vmname):
+
+    vm_uuid = __request_vm_uuid_new(vmname)
+
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + "/vms/" + vm_uuid
+        try:
+            if vm_uuid == str(json.loads(__htpp_request(base_url))['uuid']):
+                return json.loads(__htpp_request(base_url))
+        except Exception, e:
+            pass
+
+
 def __request_host(uuid):
     # request saved config data
     ntnxapi_data = __retrieve_config_data()
@@ -212,14 +304,28 @@ def __request_host(uuid):
     return __htpp_request(base_url)
 
 
-def __request_cluster(uuid):
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
+def __request_host_vms(hostname):
 
-    base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + "/clusters/" + uuid
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + "/hosts/?searchString=" + hostname
+        # check if json_object has no entities before proceeding
+        if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
+            if hostname == str(json.loads(__htpp_request(base_url))['entities'][0]['name']):
+                json_object = json.loads(__request_vms(i))
+                return json_object
 
-    return __htpp_request(base_url)
+
+def __request_host_by_name(hostname):
+
+    host_uuid = __request_host_uuid_new(hostname)
+
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + "/hosts/" + host_uuid
+        try:
+            if host_uuid == str(json.loads(__htpp_request(base_url))['uuid']):
+                return json.loads(__htpp_request(base_url))
+        except Exception, e:
+            pass
 
 
 def __request_vm_alert(uuid):
@@ -233,15 +339,17 @@ def __request_vm_alert(uuid):
     return __htpp_request(base_url)
 
 
-def __request_host_alert(uuid):
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
+def __request_host_alert(hostname):
 
-    base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + \
-        "/hosts/" + uuid + "/alerts?resolved=false"
+    host_uuid = __request_host_uuid_new(hostname)
 
-    return __htpp_request(base_url)
+    for i in __retrieve_config_data()['cluster'].split(','):
+        base_url = "https://" + i + API_PRISM + \
+            "/hosts/" + host_uuid + "/alerts?resolved=false"
+
+        # check if json_object has no entities before proceeding
+        if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
+            return __htpp_request(base_url)
 
 
 def __powerop_vm(uuid, operation):
@@ -464,25 +572,23 @@ def main(wf):
                 __snapshot_vm(str((args.query).split(" ")[2]))
 
             if arg_secondary == 'loaditem':
-                # uuid variable
-                uuid = __request_vm_uuid(str((args.query).split(" ")[1]))
 
-                # load and display a specify vm
-                json_object = json.loads(__request_vm(uuid))
+                json_object = __request_vm_by_name(
+                    str((args.query).split(" ")[1]))
 
                 # add poweron switch (workflow defined 'alt' as poweroff)
                 wf.add_item(
-                    "PowerOn", valid=True, arg=uuid, icon=ICON_SWITCH)
+                    "PowerOn", valid=True, arg=str(json_object['uuid']), icon=ICON_SWITCH)
 
                 # add alerts switch
                 wf.add_item(
                     "Alerts", valid=False, autocomplete="vms alerts " +
-                    str((args.query).split(" ")[1]), arg=uuid, icon=ICON_NOTE)
+                    str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_NOTE)
 
                 # add clone switch
                 wf.add_item(
                     "Snapshot", valid=False, autocomplete="vms snapshot " +
-                    str((args.query).split(" ")[1]), arg=uuid, icon=ICON_SNAPSHOT)
+                    str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_SNAPSHOT)
 
                 # add vm state and display proper icon
                 if json_object['powerState'] == 'on':
@@ -500,17 +606,24 @@ def main(wf):
                             key + " : " + str(value), valid=False, icon=ICON_SETTINGS)
 
             if arg_secondary == 'no argument':
-                # load and display all vms
-                json_object = json.loads(__request_vms())
 
-                for i in json_object['entities']:
-                    # add vm state and display proper icon
-                    if i['powerState'] == 'on':
-                        wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
-                                    + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV_ON)
-                    else:
-                        wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
-                                    + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV)
+                # remove environment variabled given no selection
+                __reset_env_variable('cluster.name')
+                __reset_env_variable('host.name')
+
+                for i in __retrieve_config_data()['cluster'].split(','):
+
+                    # load and display all vms
+                    json_object = json.loads(__request_vms(i))
+
+                    for i in json_object['entities']:
+                        # add vm state and display proper icon
+                        if i['powerState'] == 'on':
+                            wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
+                                        + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV_ON)
+                        else:
+                            wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
+                                        + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV)
 
         #
         # host operations
@@ -524,29 +637,25 @@ def main(wf):
                 arg_secondary = 'no argument'
 
             if arg_secondary == 'alerts':
-                # uuid variable
-                uuid = __request_host_uuid(str((args.query).split(" ")[2]))
 
-                # load and display a specify host
-                json_object = json.loads(__request_host_alert(uuid))
+                # load host
+                json_object = json.loads(__request_host_alert(
+                    str((args.query).split(" ")[2])))
 
-                # check if json_object has no entities before proceeding
-                if json_object['metadata']['count'] > 0:
-
-                    # iterate json result and add alerts to list
-                    for i in json_object['entities']:
-                        wf.add_item(
-                            i['alertTitle'], valid=True, icon=ICON_ERROR)
-                else:
+                # iterate json and add alerts to list
+                for i in json_object['entities']:
                     wf.add_item(
-                        'No Alerts', valid=False, icon=ICON_WARNING)
+                        i['alertTitle'], valid=True, icon=ICON_ERROR)
+
 
             if arg_secondary == 'loaditem':
-                # uuid variable
-                uuid = __request_host_uuid(str((args.query).split(" ")[1]))
+
+                # save host.name for post use
+                __save_env_variable('host.name', str((args.query).split(" ")[1]))
 
                 # load and display a specify host
-                json_object = json.loads(__request_host(uuid))
+                json_object = __request_host_by_name(
+                    str((args.query).split(" ")[1]))
 
                 # include Alfred list options
                 # (clusters,hosts,vms,hostvms,clusterhosts,alerts,argument,uid)
@@ -567,12 +676,12 @@ def main(wf):
                         wf.add_item(
                             "Enter Maintenance Mode", valid=False,
                             autocomplete="hosts enter_maintenance_mode " +
-                            str((args.query).split(" ")[1]), arg=uuid, icon=ICON_MAINTENANCE)
+                            str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_MAINTENANCE)
                     elif str((json_object['hypervisorState'])) == 'kEnteredMaintenanceMode':
                         wf.add_item(
                             "Exit Maintenance Mode", valid=False,
                             autocomplete="hosts exit_maintenance_mode " +
-                            str((args.query).split(" ")[1]), arg=uuid, icon=ICON_MAINTENANCE)
+                            str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_MAINTENANCE)
 
                 # iterate json result and add host details to list
                 for key, value in json_object.items():
@@ -583,34 +692,40 @@ def main(wf):
 
             if arg_secondary == 'enter_maintenance_mode':
                 # uuid variable
-                uuid = __request_host_uuid(str((args.query).split(" ")[2]))
+                uuid = __request_host_uuid_new(str((args.query).split(" ")[2]))
 
                 # __enter_maintenance_mode_host
                 __enter_maintenance_mode_host(uuid)
 
             if arg_secondary == 'exit_maintenance_mode':
                 # uuid variable
-                uuid = __request_host_uuid(str((args.query).split(" ")[2]))
+                uuid = __request_host_uuid_new(str((args.query).split(" ")[2]))
 
                 # __exit_maintenance_mode_host
                 __exit_maintenance_mode_host(uuid)
 
             if arg_secondary == 'no argument':
-                # load and display all hosts
-                json_object = json.loads(__request_hosts())
 
-                # iterate json result and add hosts to list
-                for i in json_object['entities']:
-                    # load host icon based on host state
-                    if i['hypervisorState'] == 'kEnteredMaintenanceMode':
-                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                    str(i['name']), icon=ICON_AHV_AMBER)
-                    elif i['state'] == 'NORMAL':
-                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                    str(i['name']), icon=ICON_AHV_ON)
-                    else:
-                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                    str(i['name']), icon=ICON_AHV_ALERT)
+                # remove environment variabled given no selection
+                __reset_env_variable('cluster.name')
+                __reset_env_variable('host.name')
+
+                for i in __retrieve_config_data()['cluster'].split(','):
+                    # load and display all clusters
+                    json_object = json.loads(__request_hosts(i))
+
+                    # iterate json result and add hosts to list
+                    for i in json_object['entities']:
+                        # load host icon based on host state
+                        if i['hypervisorState'] == 'kEnteredMaintenanceMode':
+                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                        str(i['name']), icon=ICON_AHV_AMBER)
+                        elif i['state'] == 'NORMAL':
+                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                        str(i['name']), icon=ICON_AHV_ON)
+                        else:
+                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                        str(i['name']), icon=ICON_AHV_ALERT)
 
         #
         # cluster operations
@@ -624,17 +739,23 @@ def main(wf):
                 arg_secondary = 'no argument'
 
             if arg_secondary == 'loaditem':
-                # uuid variable
-                uuid = __request_cluster_uuid(str((args.query).split(" ")[1]))
 
-                # load and display a specific cluster
-                json_object = json.loads(__request_cluster(uuid))
+                # save cluster.name variable for post use
+                __save_env_variable('cluster.name', (args.query).split(" ")[1])
+
+                # uuid variable
+                uuid = __request_cluster_uuid_new(
+                    str((args.query).split(" ")[1]))
 
                 # include Alfred list options
                 # (clusters,hosts,vms,hostvms,clusterhosts,alerts,argument,uid)
                 __include_list_options(
                     False, False, False, False, True, False, str((args.query).split(" ")[1]), u'uuid')
 
+                # load and display a specific cluster
+                json_object = json.loads(__request_cluster(uuid))
+
+                # notify('',str(json_object['uuid']))
                 # iterate json result and add host details to list
                 for key, value in json_object.items():
                     # do not display certain keys
@@ -644,24 +765,33 @@ def main(wf):
 
             if arg_secondary == 'no argument':
 
-                # load and display all clusters
-                json_object = json.loads(__request_clusters())
+                # remove environment variabled given no selection
+                __reset_env_variable('cluster.name')
+                __reset_env_variable('host.name')
 
-                # iterate json result and add clusters to list
-                for i in json_object['entities']:
-                    wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="clusters " +
-                                str(i['name']), uid=i['uuid'], icon=ICON_AHV_ON)
+                for i in __retrieve_config_data()['cluster'].split(','):
+                    # load and display all clusters
+                    json_object = json.loads(__request_clusters(i))
+
+                    # iterate json result and add clusters to list
+                    for i in json_object['entities']:
+                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="clusters " +
+                                    str(i['name']), uid=i['uuid'], icon=ICON_AHV_ON)
 
         #
         # host-vm operations
         #
         elif str((args.query).split(" ")[0]) == "host-vms":
 
+            # add 'Back' button option
+            wf.add_item("Back", valid=False, autocomplete="hosts " +
+                        __retrieve_env_variable('host.name'), icon=ICON_BACK)
+
             # uuid variable
-            uuid = __request_host_uuid(str((args.query).split(" ")[1]))
+            uuid = __request_host_uuid_new(str((args.query).split(" ")[1]))
 
             # load all vms
-            json_object = json.loads(__request_vms())
+            json_object = __request_host_vms(str((args.query).split(" ")[1]))
 
             # iterate json result and add vms wher host 'uuid' match
             for i in json_object['entities']:
@@ -683,23 +813,28 @@ def main(wf):
         #
         elif str((args.query).split(" ")[0]) == "cluster-hosts":
 
-           # uuid variable
-            uuid = __request_cluster_uuid(str((args.query).split(" ")[1]))
+            # add 'Back' button option
+            wf.add_item("Back", valid=False, autocomplete="clusters " +
+                        __retrieve_env_variable('cluster.name'), icon=ICON_BACK)
+
+            # cluster ip variable
+            cluster_ip_address = __request_cluster_ip(
+                str((args.query).split(" ")[1]))
 
             # load all vms
-            json_object = json.loads(__request_hosts())
+            json_object = json.loads(
+                __request_cluster_hosts(cluster_ip_address))
 
             # iterate json result and add hosts where cluster 'uuid' match
             for i in json_object['entities']:
                 try:
-                    if i['clusterUuid'] == uuid:
-                        # load host icon based on host state
-                        if i['state'] == 'NORMAL':
-                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                        str(i['name']), icon=ICON_AHV_ON)
-                        else:
-                            wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
-                                        str(i['name']), icon=ICON_AHV_ALERT)
+                    # load host icon based on host state
+                    if i['state'] == 'NORMAL':
+                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                    str(i['name']), icon=ICON_AHV_ON)
+                    else:
+                        wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
+                                    str(i['name']), icon=ICON_AHV_ALERT)
 
                 except Exception:
                     pass
