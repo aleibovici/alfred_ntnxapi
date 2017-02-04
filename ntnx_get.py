@@ -43,7 +43,7 @@ ICON_MAINTENANCE = 'icons/maintenance.png'
 ICON_BACK = 'icons/back.png'
 
 
-# Nutanix API URI
+# Default Nutanix API URI
 API_AHV = ':9440/api/nutanix/v0.8'
 API_PRISM = ':9440/PrismGateway/services/rest/v1'
 
@@ -54,7 +54,7 @@ KEY_IGNORE_VM = {'vmDisks', 'vmNics', 'containerIds', 'vmId', 'virtualNicIds', '
 KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateStatus', 'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state', 'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation', 'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid', 'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
                    'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize', 'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername', 'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword', 'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored', 'oplogDiskPct', 'failoverClusterNodeState', 'bmcModel', 'biosModel', 'cpuModel', 'failoveClusterFqdn', 'bmcVersion', 'biosVersion', 'cpuCapacityInHz', 'cpuFrequencyInHz', 'isDegraded', 'hbaFirmwaresList', 'memoryCapacityInBytes'}
 KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'cloudcluster', 'hypervisorSecurityComplianceConfig', 'securityComplianceConfig', 'rackableUnits', 'publicKeys', 'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster', 'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id', 'clusterIncarnationId',
-                      'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones', 'disableDegradedNodeMonitoring', 'enforceRackableUnitAwarePlacement', 'iscsiConfig', 'smtpServer'}
+                      'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones', 'disableDegradedNodeMonitoring', 'enforceRackableUnitAwarePlacement', 'iscsiConfig', 'smtpServer', 'managementServers', 'commonCriteriaMode', 'isSspEnabled', 'operationMode'}
 
 
 def __install_and_import_package(package):
@@ -66,6 +66,21 @@ def __install_and_import_package(package):
         pip.main(['install', '--user', package])
     finally:
         globals()[package] = importlib.import_module(package)
+
+
+def __define_api_version():
+    # request saved config data
+    ntnxapi_data = __retrieve_config_data()
+
+    global API_PRISM
+    global API_AHV
+
+    if ntnxapi_data['api'] == '1.0':
+        API_PRISM = ':9440/PrismGateway/services/rest/v1'
+    elif ntnxapi_data['api'] == '2.0':
+        API_PRISM = ':9440/PrismGateway/services/rest/v2.0'
+
+    API_AHV = ':9440/api/nutanix/v0.8'
 
 
 def __supress_security():
@@ -525,6 +540,9 @@ def __include_list_options(clusters, hosts, vms, hostvms, clusterhosts, alerts, 
 def main(wf):
     # self-updating function
     __check_update()
+
+    # define Nutanix API version to be used
+    __define_api_version()
 
     # include Alfred list options
     # (clusters,hosts,vms,hostvms,clusterhosts,alerts,argument,uid)

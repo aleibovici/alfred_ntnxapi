@@ -14,7 +14,6 @@ import json
 from ntnx_get import notify, parse_args
 from workflow import Workflow
 
-
 def main(wf):
 
     executed = False    # True if execution is sucessfull before store
@@ -27,11 +26,11 @@ def main(wf):
 
     # include Alfred password option
     wf.add_item("password", valid=False,
-                autocomplete="username ", uid=u'username')
+                autocomplete="password ", uid=u'password')
 
     # include Alfred cluster option
     wf.add_item("cluster", valid=False,
-                autocomplete="username ", uid=u'username')
+                autocomplete="cluster ", uid=u'cluster')
 
     # check for existing aguments in query
     if args.query is None:
@@ -40,6 +39,15 @@ def main(wf):
 
     # load Alfred workflow configuration
     ntnxapi_data = json.loads(json.dumps(wf.stored_data('ntnxapi_data')))
+
+    # Create ntnxapi_data if empty
+    if ntnxapi_data == None:
+        ntnxapi_data = {
+            'cluster': {},
+            'username': {},
+            'password': {},
+            'api': '1.0'
+        }
 
     # granular control for each configuration entity
     if str((args.query).split(" ")[0]) == 'username':
