@@ -44,17 +44,21 @@ ICON_BACK = 'icons/back.png'
 
 
 # Default Nutanix API URI
+API_VERSION = '1.0'
 API_AHV = ':9440/api/nutanix/v0.8'
 API_PRISM = ':9440/PrismGateway/services/rest/v1'
+hypervisorType = ''
+hypervisorState = ''
+powerstate = ''
+vmName = ''
+hostUuid = ''
+vmId = ''
 
 
 # Filter ignore Keys
-KEY_IGNORE_VM = {'vmDisks', 'vmNics', 'containerIds', 'vmId', 'virtualNicIds', 'vdiskFilePaths', 'stats', 'uuid', 'nutanixVirtualDisks', 'nutanixVirtualDisksIds', 'nutanixVirtualDiskUuids',
-                 'nutanixVirtualDiskIds', 'hostId', 'hostUuid', 'clusterUuid', 'usageStats', 'virtualNicUuids', 'containerUuids', 'nutanixGuestTools', 'runningOnNdfs', 'vdiskNames', 'displayable', 'guestOperatingSystem', 'acropolisVm', 'powerState', 'onDiskDedup', 'fingerPrintOnWrite', 'controllerVm', 'numNetworkAdapters', 'memoryReservedCapacityInBytes', 'cpuReservedInHz', 'diskCapacityInBytes'}
-KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateStatus', 'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state', 'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation', 'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid', 'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
-                   'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize', 'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername', 'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword', 'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored', 'oplogDiskPct', 'failoverClusterNodeState', 'bmcModel', 'biosModel', 'cpuModel', 'failoveClusterFqdn', 'bmcVersion', 'biosVersion', 'cpuCapacityInHz', 'cpuFrequencyInHz', 'isDegraded', 'hbaFirmwaresList', 'memoryCapacityInBytes'}
-KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'cloudcluster', 'hypervisorSecurityComplianceConfig', 'securityComplianceConfig', 'rackableUnits', 'publicKeys', 'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster', 'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id', 'clusterIncarnationId',
-                      'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones', 'disableDegradedNodeMonitoring', 'enforceRackableUnitAwarePlacement', 'iscsiConfig', 'smtpServer', 'managementServers', 'commonCriteriaMode', 'isSspEnabled', 'operationMode'}
+KEY_IGNORE_VM = {}
+KEY_IGNORE_HOST = {}
+KEY_IGNORE_CLUSTER = {}
 
 
 def __install_and_import_package(package):
@@ -72,15 +76,49 @@ def __define_api_version():
     # request saved config data
     ntnxapi_data = __retrieve_config_data()
 
+    global API_VERSION
     global API_PRISM
     global API_AHV
-
-    if ntnxapi_data['api'] == '1.0':
-        API_PRISM = ':9440/PrismGateway/services/rest/v1'
-    elif ntnxapi_data['api'] == '2.0':
-        API_PRISM = ':9440/PrismGateway/services/rest/v2.0'
+    global hypervisorType
+    global hypervisorState
+    global powerstate
+    global vmName
+    global hostUuid
+    global vmId
+    global KEY_IGNORE_VM
+    global KEY_IGNORE_HOST
+    global KEY_IGNORE_CLUSTER
 
     API_AHV = ':9440/api/nutanix/v0.8'
+
+    if ntnxapi_data['api'] == '1.0':
+        API_VERSION = '1.0'
+        API_PRISM = ':9440/PrismGateway/services/rest/v1'
+        hypervisorType = 'hypervisorType'
+        hypervisorState = 'hypervisorState'
+        powerstate = 'powerState'
+        vmName = 'vmName'
+        hostUuid = 'hostUuid'
+        vmId = 'vmId'
+        KEY_IGNORE_VM = {'vmDisks', 'vmNics', 'containerIds', 'vmId', 'virtualNicIds', 'vdiskFilePaths', 'stats', 'uuid', 'nutanixVirtualDisks', 'nutanixVirtualDisksIds', 'nutanixVirtualDiskUuids',
+                         'nutanixVirtualDiskIds', 'hostId', 'hostUuid', 'clusterUuid', 'usageStats', 'virtualNicUuids', 'containerUuids', 'nutanixGuestTools', 'runningOnNdfs', 'vdiskNames', 'displayable', 'guestOperatingSystem', 'acropolisVm', 'powerState', 'onDiskDedup', 'fingerPrintOnWrite', 'controllerVm', 'numNetworkAdapters', 'memoryReservedCapacityInBytes', 'cpuReservedInHz', 'diskCapacityInBytes'}
+        KEY_IGNORE_HOST = {'dynamicRingChangingNode', 'keyManagementDeviceToCertificateStatus', 'stats', 'diskHardwareConfigs', 'usageStats', 'position', 'state', 'hostNicIds', 'hasCsr', 'vzoneName', 'bootTimeInUsecs', 'defaultVhdLocation', 'defaultVhdContainerId', 'removalStatus', 'defaultVmContainerUuid', 'defaultVhdContainerUuid', 'defaultVmLocation', 'clusterUuid',
+                           'defaultVmContainerId', 'blockModel', 'serviceVmId', 'oplogDiskSize', 'metadataStoreStatusMessage', 'uuid', 'ipmiPassword', 'ipmiUsername', 'hypervisorUsername', 'serviceVMId', 'metadataStoreStatus', 'hypervisorPassword', 'blockLocation', 'hostMaintenanceModeReason', 'rebootPending', 'monitored', 'oplogDiskPct', 'failoverClusterNodeState', 'bmcModel', 'biosModel', 'cpuModel', 'failoveClusterFqdn', 'bmcVersion', 'biosVersion', 'cpuCapacityInHz', 'cpuFrequencyInHz', 'isDegraded', 'hbaFirmwaresList', 'memoryCapacityInBytes'}
+        KEY_IGNORE_CLUSTER = {'stats', 'usageStats', 'cloudcluster', 'hypervisorSecurityComplianceConfig', 'securityComplianceConfig', 'rackableUnits', 'publicKeys', 'clusterRedundancyState', 'globalNfsWhiteList', 'multicluster', 'serviceCenters', 'clusterUuid', 'supportVerbositySite', 'id', 'clusterIncarnationId',
+                              'credential', 'httpProxies', 'uuid', 'allHypervNodesInFailoverCluster', 'supportVerbosityType', 'fullVersion', 'enableLockDown', 'isUpgradeInProgress', 'nosClusterAndHostsDomainJoined', 'enablePasswordRemoteLoginToCluster', 'ssdPinningPercentageLimit', 'fingerprintContentCachePercentage', 'domain', 'enableShadowClones', 'disableDegradedNodeMonitoring', 'enforceRackableUnitAwarePlacement', 'iscsiConfig', 'smtpServer', 'managementServers', 'commonCriteriaMode', 'isSspEnabled', 'operationMode'}
+
+    elif ntnxapi_data['api'] == '2.0':
+        API_VERSION = '2.0'
+        API_PRISM = ':9440/PrismGateway/services/rest/v2.0'
+        hypervisorType = 'hypervisor_type'
+        hypervisorState = 'hypervisor_state'
+        powerstate = 'power_state'
+        vmName = 'name'
+        hostUuid = 'host_uuid'
+        vmId = 'uuid'
+        KEY_IGNORE_VM = {'host_uuid', 'power_state', 'uuid', 'vm_disk_info', 'is_cdrom', 'is_empty', 'is_flash_mode_enabled', 'is_scsi_passthrough', 'is_thin_provisioned', 'shared', 'source_disk_address', 'disk_address', 'vm_logical_timestamp', 'vm_nics', 'name'}
+        KEY_IGNORE_HOST = {'service_vmid', 'uuid', 'disk_hardware_configs', 'hypervisor_username', 'hypervisor_password', 'ipmi_username', 'ipmi_password', 'monitored', 'position', 'block_location', 'metadata_store_status_message', 'dynamic_ring_changing_node', 'removal_status', 'vzone_name', 'cpu_frequency_in_hz', 'cpu_capacity_in_hz', 'boot_time_in_usecs', 'failover_cluster_fqdn', 'failover_cluster_node_state', 'reboot_pending', 'default_vm_location', 'default_vm_storage_container_id', 'default_vm_storage_container_uuid', 'default_vhd_location', 'default_vhd_storage_container_id', 'default_vhd_storage_container_uuid', 'cluster_uuid', 'stats', 'usage_stats', 'has_csr', 'host_nic_ids', 'key_management_device_to_certificate_status', 'host_in_maintenance_mode', 'metadata_store_status', 'host_maintenance_mode_reason', 'block_model', 'oplog_disk_size', 'bios_model', 'bios_version', 'bmc_model', 'bmc_version', 'state', 'oplog_disk_pct', 'hba_firmwares_list', 'hypervisor_state', 'is_degraded', 'memory_capacity_in_bytes', 'cpu_model', 'name'}
+        KEY_IGNORE_CLUSTER = {'id', 'uuid', 'cluster_incarnation_id', 'cluster_uuid', 'support_verbosity_type', 'enable_password_remote_login_to_cluster', 'fingerprint_content_cache_percentage', 'global_nfs_white_list', 'security_compliance_config', 'hypervisor_security_compliance_config', 'iscsi_config', 'ssd_pinning_percentage_limit', 'stats', 'usage_stats', 'disable_degraded_node_monitoring', 'common_criteria_mode', 'full_version', 'credential', 'all_hyperv_nodes_in_failover_cluster', 'nos_cluster_and_hosts_domain_joined', 'has_self_encrypting_drive', 'cluster_redundancy_state', 'public_keys', 'http_proxies', 'rackable_units', 'enable_shadow_clones', 'management_servers', 'is_upgrade_in_progress', 'service_centers', 'enable_lock_down', 'operation_mode', 'cloudcluster', 'enforce_rackable_unit_aware_placement', 'name_servers', 'ntp_servers', 'smtp_server', 'multicluster', 'name'}
 
 
 def __supress_security():
@@ -177,7 +215,7 @@ def __request_vm_uuid_new(vmname):
             "/vms/?searchString=" + vmname
         # check if json_object has no entities before proceeding
         if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
-            if vmname == str(json.loads(__htpp_request(base_url))['entities'][0]['vmName']):
+            if vmname == str(json.loads(__htpp_request(base_url))['entities'][0][vmName]):
                 break
 
     return str(json.loads(__htpp_request(base_url))['entities'][0]['uuid'])
@@ -190,7 +228,7 @@ def __request_vm_vmuuid(name):
     base_url = "https://" + \
         ntnxapi_data['cluster'] + API_PRISM + "/vms/?searchString=" + name
 
-    return str(json.loads(__htpp_request(base_url))['entities'][0]['vmId'])
+    return str(json.loads(__htpp_request(base_url))['entities'][0][vmId])
 
 
 def __request_host_uuid(name):
@@ -245,7 +283,10 @@ def __request_cluster_ip(cluster_name):
         if cluster_name == str(json.loads(__htpp_request(base_url))['name']):
             break
 
-    return str(json.loads(__htpp_request(base_url))['clusterExternalIPAddress'])
+    if API_VERSION == '1.0':
+        return str(json.loads(__htpp_request(base_url))['clusterExternalIPAddress'])
+    elif API_VERSION == '2.0':
+        return str(json.loads(__htpp_request(base_url))['cluster_external_ipaddress'])        
 
 
 def __request_hosts(cluster_ip_address):
@@ -342,29 +383,30 @@ def __request_host_by_name(hostname):
         except Exception, e:
             pass
 
+# @deprecated
+# def __request_vm_alert(uuid):
+#     # request saved config data
+#     ntnxapi_data = __retrieve_config_data()
 
-def __request_vm_alert(uuid):
-    # request saved config data
-    ntnxapi_data = __retrieve_config_data()
+#     base_url = "https://" + \
+#         ntnxapi_data['cluster'] + API_PRISM + \
+#         "/vms/" + uuid + "/alerts?resolved=false"
 
-    base_url = "https://" + \
-        ntnxapi_data['cluster'] + API_PRISM + \
-        "/vms/" + uuid + "/alerts?resolved=false"
-
-    return __htpp_request(base_url)
+#     return __htpp_request(base_url)
 
 
-def __request_host_alert(hostname):
+# @deprecated
+# def __request_host_alert(hostname):
 
-    host_uuid = __request_host_uuid_new(hostname)
+#     host_uuid = __request_host_uuid_new(hostname)
 
-    for i in __retrieve_config_data()['cluster'].split(','):
-        base_url = "https://" + i + API_PRISM + \
-            "/hosts/" + host_uuid + "/alerts?resolved=false"
+#     for i in __retrieve_config_data()['cluster'].split(','):
+#         base_url = "https://" + i + API_PRISM + \
+#             "/hosts/" + host_uuid + "/alerts?resolved=false"
 
-        # check if json_object has no entities before proceeding
-        if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
-            return __htpp_request(base_url)
+#         # check if json_object has no entities before proceeding
+#         if json.loads(__htpp_request(base_url))['metadata']['count'] > 0:
+#             return __htpp_request(base_url)
 
 
 def __powerop_vm(uuid, operation):
@@ -568,23 +610,24 @@ def main(wf):
             except Exception:
                 arg_secondary = 'no argument'
 
-            if arg_secondary == 'alerts':
-                # uuid variable
-                uuid = __request_vm_uuid(str((args.query).split(" ")[2]))
+            # @deprecated
+            # if arg_secondary == 'alerts':
+            #     # uuid variable
+            #     uuid = __request_vm_uuid(str((args.query).split(" ")[2]))
 
-                # load and display alerts for a specific vm
-                json_object = json.loads(__request_vm_alert(uuid))
+            #     # load and display alerts for a specific vm
+            #     json_object = json.loads(__request_vm_alert(uuid))
 
-                # check if json_object has no entities before proceeding
-                if json_object['metadata']['count'] > 0:
+            #     # check if json_object has no entities before proceeding
+            #     if json_object['metadata']['count'] > 0:
 
-                    # iterate json result and add vm details to list
-                    for key, value in json_object['entities'].items():
-                        wf.add_item(
-                            key + " : " + str(value), valid=False, icon=ICON_WARNING)
-                else:
-                    wf.add_item(
-                        'No Alerts', valid=False, icon=ICON_WARNING)
+            #         # iterate json result and add vm details to list
+            #         for key, value in json_object['entities'].items():
+            #             wf.add_item(
+            #                 key + " : " + str(value), valid=False, icon=ICON_WARNING)
+            #     else:
+            #         wf.add_item(
+            #             'No Alerts', valid=False, icon=ICON_WARNING)
 
             if arg_secondary == 'snapshot':
                 __snapshot_vm(str((args.query).split(" ")[2]))
@@ -598,10 +641,11 @@ def main(wf):
                 wf.add_item(
                     "PowerOn", valid=True, arg=str(json_object['uuid']), icon=ICON_SWITCH)
 
+                # @deprecated
                 # add alerts switch
-                wf.add_item(
-                    "Alerts", valid=False, autocomplete="vms alerts " +
-                    str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_NOTE)
+                # wf.add_item(
+                #     "Alerts", valid=False, autocomplete="vms alerts " +
+                #     str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_NOTE)
 
                 # add clone switch
                 wf.add_item(
@@ -609,12 +653,12 @@ def main(wf):
                     str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_SNAPSHOT)
 
                 # add vm state and display proper icon
-                if json_object['powerState'] == 'on':
+                if json_object[powerstate] == 'on':
                     wf.add_item(
-                        "State : " + json_object['powerState'], valid=False, icon=ICON_ON)
+                        "State : " + json_object[powerstate], valid=False, icon=ICON_ON)
                 else:
                     wf.add_item(
-                        "State : " + json_object['powerState'], valid=False, icon=ICON_OFF)
+                        "State : " + json_object[powerstate], valid=False, icon=ICON_OFF)
 
                 # iterate json result and add vm details to list
                 for key, value in json_object.items():
@@ -636,12 +680,12 @@ def main(wf):
 
                     for i in json_object['entities']:
                         # add vm state and display proper icon
-                        if i['powerState'] == 'on':
-                            wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
-                                        + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV_ON)
+                        if i[powerstate] == 'on':
+                            wf.add_item(i[vmName], i['uuid'], valid=False, autocomplete="vms "
+                                        + str(i[vmName]), uid=i['uuid'], icon=ICON_AHV_ON)
                         else:
-                            wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
-                                        + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV)
+                            wf.add_item(i[vmName], i['uuid'], valid=False, autocomplete="vms "
+                                        + str(i[vmName]), uid=i['uuid'], icon=ICON_AHV)
 
         #
         # host operations
@@ -654,16 +698,17 @@ def main(wf):
             except Exception:
                 arg_secondary = 'no argument'
 
-            if arg_secondary == 'alerts':
+            # @deprecated
+            # if arg_secondary == 'alerts':
 
-                # load host
-                json_object = json.loads(__request_host_alert(
-                    str((args.query).split(" ")[2])))
+            #     # load host
+            #     json_object = json.loads(__request_host_alert(
+            #         str((args.query).split(" ")[2])))
 
-                # iterate json and add alerts to list
-                for i in json_object['entities']:
-                    wf.add_item(
-                        i['alertTitle'], valid=True, icon=ICON_ERROR)
+            #     # iterate json and add alerts to list
+            #     for i in json_object['entities']:
+            #         wf.add_item(
+            #             i['alertTitle'], valid=True, icon=ICON_ERROR)
 
 
             if arg_secondary == 'loaditem':
@@ -678,7 +723,7 @@ def main(wf):
                 # include Alfred list options
                 # (clusters,hosts,vms,hostvms,clusterhosts,alerts,argument,uid)
                 __include_list_options(
-                    False, False, False, True, False, True, str((args.query).split(" ")[1]), u'uuid')
+                    False, False, False, True, False, False, str((args.query).split(" ")[1]), u'uuid')
 
                 if ((json_object)['state']) == "NORMAL":
                     wf.add_item(
@@ -689,13 +734,13 @@ def main(wf):
 
                 # include enter_maintenance_mode and exit_maintenance_mode options
                 # only include if Acropolis hypervisor
-                if str((json_object)['hypervisorType']) == 'kKvm':
-                    if str((json_object)['hypervisorState']) == 'kAcropolisNormal':
+                if str((json_object)[hypervisorType]) == 'kKvm':
+                    if str((json_object)[hypervisorState]) == 'kAcropolisNormal':
                         wf.add_item(
                             "Enter Maintenance Mode", valid=False,
                             autocomplete="hosts enter_maintenance_mode " +
                             str((args.query).split(" ")[1]), arg=str(json_object['uuid']), icon=ICON_MAINTENANCE)
-                    elif str((json_object['hypervisorState'])) == 'kEnteredMaintenanceMode':
+                    elif str((json_object[hypervisorState])) == 'kEnteredMaintenanceMode':
                         wf.add_item(
                             "Exit Maintenance Mode", valid=False,
                             autocomplete="hosts exit_maintenance_mode " +
@@ -735,7 +780,7 @@ def main(wf):
                     # iterate json result and add hosts to list
                     for i in json_object['entities']:
                         # load host icon based on host state
-                        if i['hypervisorState'] == 'kEnteredMaintenanceMode':
+                        if i[hypervisorState] == 'kEnteredMaintenanceMode':
                             wf.add_item(i['name'], i['uuid'], valid=False, autocomplete="hosts " +
                                         str(i['name']), icon=ICON_AHV_AMBER)
                         elif i['state'] == 'NORMAL':
@@ -814,15 +859,14 @@ def main(wf):
             # iterate json result and add vms wher host 'uuid' match
             for i in json_object['entities']:
                 try:
-                    if i['hostUuid'] == uuid:
+                    if i[hostUuid] == uuid:
                         # add vm state and display proper icon
-                        if i['powerState'] == 'on':
-                            wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
-                                        + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV_ON)
+                        if i[powerstate] == 'on':
+                            wf.add_item(i[vmName], i['uuid'], valid=False, autocomplete="vms "
+                                        + str(i[vmName]), uid=i['uuid'], icon=ICON_AHV_ON)
                         else:
-                            wf.add_item(i['vmName'], i['uuid'], valid=False, autocomplete="vms "
-                                        + str(i['vmName']), uid=i['uuid'], icon=ICON_AHV)
-
+                            wf.add_item(i[vmName], i['uuid'], valid=False, autocomplete="vms "
+                                        + str(i[vmName]), uid=i['uuid'], icon=ICON_AHV)
                 except Exception:
                     pass
 

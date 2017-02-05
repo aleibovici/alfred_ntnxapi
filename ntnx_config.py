@@ -62,6 +62,10 @@ def main(wf):
         ntnxapi_data['cluster'] = str((args.query).split(" ")[1])
         executed = True
 
+    if str((args.query).split(" ")[0]) == 'api':
+        ntnxapi_data['api'] = str((args.query).split(" ")[1])
+        executed = True
+
     if executed:
         # use Alfred to store workflow configuration
         wf.store_data('ntnxapi_data', ntnxapi_data, serializer='json')
